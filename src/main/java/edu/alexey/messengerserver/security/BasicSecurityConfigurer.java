@@ -1,37 +1,43 @@
 package edu.alexey.messengerserver.security;
 
-import java.util.Collection;
-import java.util.List;
-
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.crypto.password.NoOpPasswordEncoder;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
+
+import edu.alexey.messengerserver.entities.User;
+import edu.alexey.messengerserver.repositories.UserRepository;
+import lombok.extern.slf4j.Slf4j;
 
 @Configuration
 @EnableWebSecurity
+@Slf4j
 @Profile("default")
 public class BasicSecurityConfigurer {
 
 	@Bean
 	PasswordEncoder passwordEncoder() {
-		return NoOpPasswordEncoder.getInstance(); //new BCryptPasswordEncoder();
+		return new BCryptPasswordEncoder(); // NoOpPasswordEncoder.getInstance(); 
 	}
 
 	@Bean
 	SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 		return http.csrf(conf -> conf.disable())
-				.authorizeHttpRequests(request -> request.anyRequest().authenticated())
+				.authorizeHttpRequests(request -> request
+						.requestMatchers(HttpMethod.GET, "/messages/**").permitAll()
+						.requestMatchers(HttpMethod.GET, "/user/hello", "/user/{user_uuid}").permitAll()
+						.requestMatchers(HttpMethod.POST, "/user/signup").permitAll()
+						.requestMatchers("/client", "/client/**").authenticated()
+						.anyRequest().denyAll())
 				//.authorizeHttpRequests(request -> request.anyRequest().permitAll())
 				//				.formLogin(login -> login // enable form based log in
 				//						// set permitAll for all URLs associated with Form Login
@@ -41,49 +47,63 @@ public class BasicSecurityConfigurer {
 	}
 
 	@Bean
-	UserDetailsService userDetailsService(PasswordEncoder encoder) {
-		List<UserDetails> users = List.of(
-				new UserDetails() {
+	UserDetailsService userDetailsService(UserRepository userRepository) {
 
-					private static final long serialVersionUID = 1L;
+		return new UserDetailsService() {
 
-					@Override
-					public Collection<? extends GrantedAuthority> getAuthorities() {
-						return List.of(new SimpleGrantedAuthority("ROLE_USER"));
-					}
+			@Override
+			public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+				User user = userRepository.findByUsername(username);
+				if (user == null) {
+					log.error("User {} not found", username);
+					throw new UsernameNotFoundException(username);
+				}
+				return user;
+			}
+		};
 
-					@Override
-					public String getPassword() {
-						return encoder.encode("pass");
-					}
-
-					@Override
-					public String getUsername() {
-						return "buzz";
-					}
-
-					@Override
-					public boolean isAccountNonExpired() {
-						return true;
-					}
-
-					@Override
-					public boolean isAccountNonLocked() {
-						return true;
-					}
-
-					@Override
-					public boolean isCredentialsNonExpired() {
-						return true;
-					}
-
-					@Override
-					public boolean isEnabled() {
-						return true;
-					}
-
-				});
-
-		return new InMemoryUserDetailsManager(users);
+		//		List<UserDetails> users = List.of(
+		//				new UserDetails() {
+		//
+		//					private static final long serialVersionUID = 1L;
+		//
+		//					@Override
+		//					public Collection<? extends GrantedAuthority> getAuthorities() {
+		//						return List.of(new SimpleGrantedAuthority("ROLE_USER"));
+		//					}
+		//
+		//					@Override
+		//					public String getPassword() {
+		//						return encoder.encode("strongpass");
+		//					}
+		//
+		//					@Override
+		//					public String getUsername() {
+		//						return "buzz";
+		//					}
+		//
+		//					@Override
+		//					public boolean isAccountNonExpired() {
+		//						return true;
+		//					}
+		//
+		//					@Override
+		//					public boolean isAccountNonLocked() {
+		//						return true;
+		//					}
+		//
+		//					@Override
+		//					public boolean isCredentialsNonExpired() {
+		//						return true;
+		//					}
+		//
+		//					@Override
+		//					public boolean isEnabled() {
+		//						return true;
+		//					}
+		//
+		//				});
+		//
+		//		return new InMemoryUserDetailsManager(users);
 	}
 }
