@@ -33,9 +33,10 @@ public class BasicSecurityConfigurer {
 	SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 		return http.csrf(conf -> conf.disable())
 				.authorizeHttpRequests(request -> request
-						.requestMatchers(HttpMethod.GET, "/messages/**").permitAll()
-						.requestMatchers(HttpMethod.GET, "/user/hello", "/user/{user_uuid}").permitAll()
-						.requestMatchers(HttpMethod.POST, "/user/signup").permitAll()
+						.requestMatchers(HttpMethod.GET, "/hello", "/users/{user_uuid}").permitAll()
+						.requestMatchers(HttpMethod.POST, "/users/signup").permitAll()
+						.requestMatchers(HttpMethod.GET, "/users*").authenticated()
+						.requestMatchers("/messages/**").authenticated()
 						.requestMatchers("/client", "/client/**").authenticated()
 						.anyRequest().denyAll())
 				//.authorizeHttpRequests(request -> request.anyRequest().permitAll())

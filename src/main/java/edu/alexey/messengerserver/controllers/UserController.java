@@ -1,5 +1,6 @@
 package edu.alexey.messengerserver.controllers;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -9,9 +10,11 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import edu.alexey.messengerserver.dto.UserResponseDto;
 import edu.alexey.messengerserver.dto.UserSignupDto;
 import edu.alexey.messengerserver.entities.User;
 import edu.alexey.messengerserver.services.UserService;
@@ -24,16 +27,22 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @RequiredArgsConstructor
 @RestController
-@RequestMapping("/user")
+@RequestMapping("/users")
 public class UserController {
 
 	private final UserService userService;
 
-	@GetMapping("/hello")
-	public ResponseEntity<Void> hello(HttpServletRequest request) {
+	@GetMapping("/{user_uuid}")
+	public ResponseEntity<String> getDisplayName(HttpServletRequest request, @PathVariable("user_uuid") UUID userUuid) {
 
-		log.info("IP {} -- Hello", ControllerUtils.getClientIp(request));
-		return ResponseEntity.ok().build();
+		log.info("IP {} -- Requested displayName of user {}", ControllerUtils.getClientIp(request), userUuid);
+
+		Optional<User> userOpt = userService.getByUserUuid(userUuid);
+		if (userOpt.isEmpty()) {
+			return ResponseEntity.badRequest().build();
+		}
+
+		return ResponseEntity.ok(userOpt.get().getDisplayName());
 	}
 
 	@PostMapping("/signup")
@@ -48,17 +57,28 @@ public class UserController {
 				.build();
 	}
 
-	@GetMapping("/{user_uuid}")
-	public ResponseEntity<String> getDisplayName(HttpServletRequest request, @PathVariable("user_uuid") UUID userUuid) {
+	@GetMapping(params = "uuid")
+	public ResponseEntity<List<UserResponseDto>> findByUuid(
+			@RequestParam(name = "uuid", required = true) String userUuidPattern) {
 
-		log.info("IP {} -- Requested displayName of user {}", ControllerUtils.getClientIp(request), userUuid);
+		List<UserResponseDto> userDtos = userService.findByUserUuidLimited(userUuidPattern)
+				.stream()
+				.map(u -> new UserResponseDto(u.getUserUuid(), u.getDisplayName()))
+				.toList();
 
-		Optional<User> userOpt = userService.getByUserUuid(userUuid);
-		if (userOpt.isEmpty()) {
-			return ResponseEntity.badRequest().build();
-		}
+		return ResponseEntity.ok(userDtos);
+	}
 
-		return ResponseEntity.ok(userOpt.get().getDisplayName());
+	@GetMapping(params = "display_name")
+	public ResponseEntity<List<UserResponseDto>> findByDisplayName(
+			@RequestParam(name = "display_name", required = true) String displayNamePattern) {
+
+		List<UserResponseDto> userDtos = userService.findByDisplayNameLimited(displayNamePattern)
+				.stream()
+				.map(u -> new UserResponseDto(u.getUserUuid(), u.getDisplayName()))
+				.toList();
+
+		return ResponseEntity.ok(userDtos);
 	}
 
 }

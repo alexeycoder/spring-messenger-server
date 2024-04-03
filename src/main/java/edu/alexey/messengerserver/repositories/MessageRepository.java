@@ -9,6 +9,7 @@ import java.util.stream.Stream;
 import org.springframework.data.domain.Limit;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import edu.alexey.messengerserver.entities.Message;
@@ -17,11 +18,14 @@ import edu.alexey.messengerserver.entities.User;
 @Repository
 public interface MessageRepository extends JpaRepository<Message, Long> {
 
-	Optional<Message> findByAddresseeAndMessageUuid(User addressee, UUID messageUuid);
+	Optional<Message> findByMessageUuid(UUID messageUuid);
 
-	Stream<Message> streamByAddresseeAndSentAtGreaterThanEqual(User addressee, LocalDateTime sentAt, Sort sort);
+	List<Message> findByAddresseeOrSender(User addressee, User sender, Sort sort, Limit limit);
 
-	List<Message> findByAddressee(User addressee, Sort sort, Limit limit);
+	@Query("select m from Message m where ( m.addressee = ?1 or m.sender = ?1 ) and m.sentAt >= ?2 order by m.sentAt, m.messageId")
+	Stream<Message> streamAllLaterByUser(User user, LocalDateTime sentAt);
 
+	// Stream<Message> streamByAddresseeAndSentAtGreaterThanEqual(User addressee, LocalDateTime sentAt, Sort sort);
+	// Stream<Message> streamByAddresseeOrSenderAndSentAtGreaterThanEqual(User addressee, User sender, LocalDateTime sentAt, Sort sort);
 	// List<Message> findByAddresseeOrderBySentAtAsc(User addressee, Limit limit);
 }

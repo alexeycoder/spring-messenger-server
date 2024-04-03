@@ -8,10 +8,11 @@ import java.util.UUID;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import edu.alexey.messengerserver.dto.MessageRequestDto;
@@ -30,61 +31,84 @@ import lombok.extern.slf4j.Slf4j;
 @RequestMapping("/messages")
 public class MessageController {
 
+	static final String HEADER_KEY_CLIENT_ID = "EduAlexeyMessenger-Client-Id";
+
 	private final UserService userService;
 	private final MessageService messageService;
 	private final ClientService clientService;
 
-	@GetMapping("/{user_uuid}/{limit}")
-	public ResponseEntity<List<MessageResponseDto>> test(@PathVariable("user_uuid") UUID userUuid,
-			@PathVariable("limit") int limit) {
+	//	@GetMapping("/{user_uuid}/{limit}")
+	//	public ResponseEntity<List<MessageResponseDto>> test(@PathVariable("user_uuid") UUID userUuid,
+	//			@PathVariable("limit") int limit) {
+	//
+	//		System.out.println("REQUESTED MESSAGES OF " + userUuid.toString());
+	//
+	//		Optional<User> userOpt = userService.getByUserUuid(userUuid);
+	//
+	//		System.out.println(userOpt);
+	//		System.out.println(userOpt.orElse(null));
+	//
+	//		if (userOpt.isEmpty()) {
+	//			return ResponseEntity.notFound().build();
+	//		}
+	//
+	//		List<Message> messages = messageService.findLast(userOpt.get(), limit);
+	//		List<MessageResponseDto> result = messages.stream()
+	//				.map(m -> new MessageResponseDto(m, null))
+	//				.toList();
+	//
+	//		return ResponseEntity.ok(result);
+	//	}
 
-		System.out.println("REQUESTED MESSAGES OF " + userUuid.toString());
+	@GetMapping({ "/test" })
+	public ResponseEntity<String> test2(
+			@AuthenticationPrincipal User userDetails,
+			@RequestHeader(name = HEADER_KEY_CLIENT_ID, required = false) UUID clientUuid) {
 
-		Optional<User> userOpt = userService.getByUserUuid(userUuid);
+		if (clientUuid != null) {
+			System.out.println("CLIENTUUID SPECIFIED " + clientUuid);
+			clientService.unsetHasNewMessages(clientUuid);
 
-		System.out.println(userOpt);
-		System.out.println(userOpt.orElse(null));
-
-		if (userOpt.isEmpty()) {
-			return ResponseEntity.notFound().build();
+			return ResponseEntity.ok(clientUuid.toString());
 		}
-
-		List<Message> messages = messageService.findLast(userOpt.get(), limit);
-		List<MessageResponseDto> result = messages.stream().map(MessageResponseDto::new).toList();
-
-		return ResponseEntity.ok(result);
+		return ResponseEntity.ok().build();
 	}
 
-	@GetMapping({ "/since/{message_uuid}", "/since/{message_uuid}/client/{client_uuid}" })
+	//	@GetMapping("/since/{message_uuid}")
+	@GetMapping(params = "since_message")
 	public ResponseEntity<List<MessageResponseDto>> findSince(
 			@AuthenticationPrincipal User userDetails,
-			@PathVariable("message_uuid") UUID sinceMessageUuid,
-			@PathVariable(name = "client_uuid", required = false) UUID clientUuid) {
+			@RequestHeader(name = HEADER_KEY_CLIENT_ID, required = false) UUID clientUuid,
+			@RequestParam(name = "since_message", required = true) UUID sinceMessageUuid) {
 
 		if (clientUuid != null) {
-			clientService.unsetHasIncomingMessages(clientUuid);
-			System.out.println("CLIENTUUID SPECIFIED " + clientUuid);
+			clientService.unsetHasNewMessages(clientUuid);
 		}
 		List<Message> messages = messageService.findSince(userDetails, sinceMessageUuid); // messageService.findLast(userDetails.getUserUuid(), limit);
-		List<MessageResponseDto> result = messages.stream().map(MessageResponseDto::new).toList();
+		List<MessageResponseDto> result = messages.stream()
+				.map(m -> new MessageResponseDto(m, userDetails))
+				.toList();
 		return ResponseEntity.ok(result);
 	}
 
-	@GetMapping({ "/last/{count}", "/last/{count}/client/{client_uuid}" })
+	//	@GetMapping("/last/{limit}")
+	@GetMapping(params = "limit")
 	public ResponseEntity<List<MessageResponseDto>> getLast(
 			@AuthenticationPrincipal User userDetails,
-			@PathVariable("count") int count,
-			@PathVariable(name = "client_uuid", required = false) UUID clientUuid) {
+			@RequestHeader(name = HEADER_KEY_CLIENT_ID, required = false) UUID clientUuid,
+			@RequestParam(name = "limit", required = true) int limit) {
 
 		if (clientUuid != null) {
-			clientService.unsetHasIncomingMessages(clientUuid);
+			clientService.unsetHasNewMessages(clientUuid);
 		}
-		List<Message> messages = messageService.findLast(userDetails, count);
-		List<MessageResponseDto> result = messages.stream().map(MessageResponseDto::new).toList();
+		List<Message> messages = messageService.findLast(userDetails, limit);
+		List<MessageResponseDto> result = messages.stream()
+				.map(m -> new MessageResponseDto(m, userDetails))
+				.toList();
 		return ResponseEntity.ok(result);
 	}
 
-	@PostMapping("/send")
+	@PostMapping("/new")
 	public ResponseEntity<Void> send(
 			@AuthenticationPrincipal User userDetails,
 			@RequestBody MessageRequestDto messageDto) {
@@ -97,6 +121,10 @@ public class MessageController {
 			return ResponseEntity.notFound().build();
 		}
 
+		log.warn("The userUuid {} send message to addresseeUuid {}.",
+				userDetails.getUserUuid(),
+				messageDto.getAddresseeUuid());
+
 		User addressee = addresseeOpt.get();
 		Message message = new Message();
 		message.setSender(userDetails);
@@ -105,7 +133,8 @@ public class MessageController {
 		message.setSentAt(LocalDateTime.now());
 		messageService.add(message);
 
-		clientService.notifyUserHasIncomingMessages(addressee.getUserUuid());
+		clientService.notifyUserHasNewMessages(addressee.getUserUuid());
+		clientService.notifyUserHasNewMessages(userDetails.getUserUuid());
 
 		return ResponseEntity.ok().build();
 	}

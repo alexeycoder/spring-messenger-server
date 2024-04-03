@@ -22,17 +22,17 @@ public class ClientService {
 				.add(clientUuid);
 	}
 
-	public boolean hasIncomingMessages(UUID clientUuid) {
+	public boolean hasNewMessages(UUID clientUuid) {
 		return clientStatusMap.getOrDefault(clientUuid, false);
 	}
 
-	public void notifyUserHasIncomingMessages(UUID userUuid) {
+	public void notifyUserHasNewMessages(UUID userUuid) {
 
 		userClientsMap.getOrDefault(userUuid, Set.of())
 				.forEach(clientUuid -> clientStatusMap.put(clientUuid, true));
 	}
 
-	public void unsetHasIncomingMessages(UUID clientUuid) {
+	public void unsetHasNewMessages(UUID clientUuid) {
 		clientStatusMap.put(clientUuid, false);
 	}
 }

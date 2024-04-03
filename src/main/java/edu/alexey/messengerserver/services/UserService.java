@@ -9,6 +9,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
+import org.springframework.data.domain.Limit;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -21,7 +22,9 @@ import edu.alexey.messengerserver.repositories.MessageRepository;
 import edu.alexey.messengerserver.repositories.UserRepository;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @RequiredArgsConstructor
 @Service
 public class UserService {
@@ -60,6 +63,14 @@ public class UserService {
 		return userRepository.saveAndFlush(user);
 	}
 
+	public List<User> findByDisplayNameLimited(String displayNamePattern) {
+		return userRepository.findTop10ByDisplayNameIgnoringCaseContaining(displayNamePattern);
+	}
+
+	public List<User> findByUserUuidLimited(String userUuidPattern) {
+		return userRepository.findByUserUuidPattern(userUuidPattern.toLowerCase(), Limit.of(10));
+	}
+
 	public List<User> populateUsers() {
 
 		Faker faker = new Faker();
@@ -73,12 +84,19 @@ public class UserService {
 			String password = faker.internet().password();
 			user.setPassword(passwordEncoder.encode(password));
 			user.setDisplayName(faker.name().fullName());
-			System.out.println("TEST USER: " + user + " password=" + password);
+			log.info("TEST USER: " + user + " password=" + password);
 			return user;
 
 		}).limit(4).toList();
 
+		var user = new User();
+		user.setUsername("user.user");
+		user.setPassword(passwordEncoder.encode("1234"));
+		user.setDisplayName("User User");
+
+		userRepository.save(user);
 		users.forEach(userRepository::save);
+
 		userRepository.flush();
 
 		return users;

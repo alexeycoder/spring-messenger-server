@@ -43,8 +43,14 @@ spring:
 
 
 logging:
-#  level:
-#    web: debug
+  file: 
+    name: ./logs/app.log
+  logback:
+    rollingpolicy:
+      clean-history-on-start: true
+  level:
+    web: info
+    '[logging.level.org.hibernate.orm.jdbc.bind]': trace
   pattern:
     console: "%clr(%d{HH:mm}){faint} %clr(%5p) %clr(${PID:- }){magenta} %clr(%25.25logger{0}){cyan} %clr(:){faint} %m%n%wEx"
 

@@ -27,7 +27,7 @@ public class ClientController {
 	private final ClientService clientService;
 
 	@GetMapping()
-	public ResponseEntity<Void> checkAuth(
+	public ResponseEntity<UUID> checkAuth(
 			HttpServletRequest request,
 			@AuthenticationPrincipal User userDetails) {
 
@@ -36,7 +36,7 @@ public class ClientController {
 				userDetails.getUsername(),
 				userDetails.getUserUuid());
 
-		return ResponseEntity.ok().build();
+		return ResponseEntity.ok(userDetails.getUserUuid());
 	}
 
 	@PostMapping("/{client_uuid}")
@@ -65,9 +65,9 @@ public class ClientController {
 			@AuthenticationPrincipal User userDetails,
 			@PathVariable("client_uuid") UUID clientUuid) {
 
-		int result = clientService.hasIncomingMessages(clientUuid) ? 1 : 0;
+		int result = clientService.hasNewMessages(clientUuid) ? 1 : 0;
 
-		log.info("Ckeck state from {}, username = {}, clientUuid = {}, result is {}",
+		log.info("Check state from {}, username = {}, clientUuid = {}, result is {}",
 				ControllerUtils.getClientIp(request),
 				userDetails.getUsername(),
 				clientUuid,

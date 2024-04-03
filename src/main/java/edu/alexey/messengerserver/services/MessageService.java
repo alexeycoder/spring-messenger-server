@@ -21,34 +21,41 @@ import lombok.extern.slf4j.Slf4j;
 @Service
 public class MessageService {
 
+	static final int DEFAULT_LIMIT = 99;
+
 	private final MessageRepository messageRepository;
 
 	@Transactional
 	public List<Message> findSince(User user, UUID sinceMessageUuid) {
 
-		Optional<Message> sinceMessageOpt = messageRepository.findByAddresseeAndMessageUuid(user, sinceMessageUuid);
+		Optional<Message> sinceMessageOpt = messageRepository.findByMessageUuid(sinceMessageUuid);
 
 		if (sinceMessageOpt.isEmpty()) {
-			log.error("Вероятная ошибка: не найдено сообщение с идентификатором {} для пользователя {} ({})",
+			log.error("Вероятная ошибка: не найдено сообщение с идентификатором {} для пользователя {} ({})."
+					+ " Возможно на клиенте новый пользователь с новыми учётными данными.",
 					sinceMessageUuid,
 					user.getUsername(),
 					user.getUserUuid());
-			return List.of();
+
+			return findLast(user, DEFAULT_LIMIT); // List.of();
 		}
 
+		//		Stream<Message> result = messageRepository.streamByAddresseeAndSentAtGreaterThanEqual(
+		//				user,
+		//				sinceDateTime,
+		//				Sort.by("sentAt", "messageId").ascending());
 		var sinceDateTime = sinceMessageOpt.get().getSentAt();
-		Stream<Message> result = messageRepository.streamByAddresseeAndSentAtGreaterThanEqual(
-				user,
-				sinceDateTime,
-				Sort.by("sentAt", "messageId").ascending());
 
-		return result.filter(m -> !m.getMessageUuid().equals(sinceMessageUuid)).toList();
+		try (Stream<Message> result = messageRepository.streamAllLaterByUser(user, sinceDateTime)) {
+			return result.filter(m -> !m.getMessageUuid().equals(sinceMessageUuid)).toList();
+		}
 	}
 
 	public List<Message> findLast(User user, int limit) {
 
 		// List<Message> result = messageRepository.findByAddresseeOrderBySentAtAsc(user, new Limit(0, limit));
-		List<Message> result = messageRepository.findByAddressee(
+		List<Message> result = messageRepository.findByAddresseeOrSender(
+				user,
 				user,
 				Sort.by("sentAt", "messageId").descending(),
 				Limit.of(limit));
