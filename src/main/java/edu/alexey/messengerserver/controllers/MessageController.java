@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -22,10 +23,18 @@ import edu.alexey.messengerserver.entities.User;
 import edu.alexey.messengerserver.services.ClientService;
 import edu.alexey.messengerserver.services.MessageService;
 import edu.alexey.messengerserver.services.UserService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
+@Tag(name = "Messages", description = "The Messages API")
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/messages")
@@ -60,21 +69,28 @@ public class MessageController {
 	//		return ResponseEntity.ok(result);
 	//	}
 
-	@GetMapping({ "/test" })
-	public ResponseEntity<String> test2(
-			@AuthenticationPrincipal User userDetails,
-			@RequestHeader(name = HEADER_KEY_CLIENT_ID, required = false) UUID clientUuid) {
-
-		if (clientUuid != null) {
-			System.out.println("CLIENTUUID SPECIFIED " + clientUuid);
-			clientService.unsetHasNewMessages(clientUuid);
-
-			return ResponseEntity.ok(clientUuid.toString());
-		}
-		return ResponseEntity.ok().build();
-	}
+	//	@GetMapping({ "/test" })
+	//	public ResponseEntity<String> test2(
+	//			@AuthenticationPrincipal User userDetails,
+	//			@RequestHeader(name = HEADER_KEY_CLIENT_ID, required = false) UUID clientUuid) {
+	//
+	//		if (clientUuid != null) {
+	//			System.out.println("CLIENTUUID SPECIFIED " + clientUuid);
+	//			clientService.unsetHasNewMessages(clientUuid);
+	//
+	//			return ResponseEntity.ok(clientUuid.toString());
+	//		}
+	//		return ResponseEntity.ok().build();
+	//	}
 
 	//	@GetMapping("/since/{message_uuid}")
+	@Operation(summary = "Get last messages since the specified one by message UUID")
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "200", description = "Messages since the specified message excluding the one", content = {
+					@Content(mediaType = "application/json", array = @ArraySchema(schema = @Schema(implementation = MessageResponseDto.class))) }),
+			@ApiResponse(responseCode = "400", description = "Invalid UUID of 'since message' supplied", content = @Content),
+			@ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content)
+	})
 	@GetMapping(params = "since_message")
 	public ResponseEntity<List<MessageResponseDto>> findSince(
 			@AuthenticationPrincipal User userDetails,
@@ -92,6 +108,13 @@ public class MessageController {
 	}
 
 	//	@GetMapping("/last/{limit}")
+	@Operation(summary = "Get last messages in the amount of 'limit'")
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "200", description = "Last N='limin' messages", content = {
+					@Content(mediaType = "application/json", array = @ArraySchema(schema = @Schema(implementation = MessageResponseDto.class))) }),
+			@ApiResponse(responseCode = "400", description = "Invalid 'limit' number of messages", content = @Content),
+			@ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content)
+	})
 	@GetMapping(params = "limit")
 	public ResponseEntity<List<MessageResponseDto>> getLast(
 			@AuthenticationPrincipal User userDetails,
@@ -108,6 +131,13 @@ public class MessageController {
 		return ResponseEntity.ok(result);
 	}
 
+	@Operation(summary = "Send message", description = "Addressee UUID specified in the message must exist")
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "201", description = "The message sent succesfully", content = @Content),
+			@ApiResponse(responseCode = "400", description = "Invalid message data supplied", content = @Content),
+			@ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content),
+			@ApiResponse(responseCode = "404", description = "Addressee not found", content = @Content)
+	})
 	@PostMapping("/new")
 	public ResponseEntity<Void> send(
 			@AuthenticationPrincipal User userDetails,
@@ -136,7 +166,7 @@ public class MessageController {
 		clientService.notifyUserHasNewMessages(addressee.getUserUuid());
 		clientService.notifyUserHasNewMessages(userDetails.getUserUuid());
 
-		return ResponseEntity.ok().build();
+		return ResponseEntity.status(HttpStatus.CREATED).build();
 	}
 
 }

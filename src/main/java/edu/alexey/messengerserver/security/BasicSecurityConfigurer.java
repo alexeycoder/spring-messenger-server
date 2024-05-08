@@ -33,6 +33,9 @@ public class BasicSecurityConfigurer {
 	SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 		return http.csrf(conf -> conf.disable())
 				.authorizeHttpRequests(request -> request
+						.requestMatchers(HttpMethod.GET, "/api-docs", "/api-docs/**",
+								"/api-docs.yaml", "/swagger-ui/**", "/swagger-ui**")
+						.permitAll()
 						.requestMatchers(HttpMethod.GET, "/hello", "/users/{user_uuid}").permitAll()
 						.requestMatchers(HttpMethod.POST, "/users/signup").permitAll()
 						.requestMatchers(HttpMethod.GET, "/users*").authenticated()
@@ -63,48 +66,5 @@ public class BasicSecurityConfigurer {
 			}
 		};
 
-		//		List<UserDetails> users = List.of(
-		//				new UserDetails() {
-		//
-		//					private static final long serialVersionUID = 1L;
-		//
-		//					@Override
-		//					public Collection<? extends GrantedAuthority> getAuthorities() {
-		//						return List.of(new SimpleGrantedAuthority("ROLE_USER"));
-		//					}
-		//
-		//					@Override
-		//					public String getPassword() {
-		//						return encoder.encode("strongpass");
-		//					}
-		//
-		//					@Override
-		//					public String getUsername() {
-		//						return "buzz";
-		//					}
-		//
-		//					@Override
-		//					public boolean isAccountNonExpired() {
-		//						return true;
-		//					}
-		//
-		//					@Override
-		//					public boolean isAccountNonLocked() {
-		//						return true;
-		//					}
-		//
-		//					@Override
-		//					public boolean isCredentialsNonExpired() {
-		//						return true;
-		//					}
-		//
-		//					@Override
-		//					public boolean isEnabled() {
-		//						return true;
-		//					}
-		//
-		//				});
-		//
-		//		return new InMemoryUserDetailsManager(users);
 	}
 }
