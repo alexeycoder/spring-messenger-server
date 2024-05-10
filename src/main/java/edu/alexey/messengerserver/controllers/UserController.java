@@ -44,6 +44,7 @@ public class UserController {
 	@ApiResponses(value = {
 			@ApiResponse(responseCode = "200", description = "The user's Display Name", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))),
 			@ApiResponse(responseCode = "400", description = "Invalid user UUID supplied", content = @Content),
+			@ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content),
 			@ApiResponse(responseCode = "404", description = "User not found", content = @Content)
 	})
 	@GetMapping("/{user_uuid}")
@@ -53,7 +54,7 @@ public class UserController {
 
 		Optional<User> userOpt = userService.getByUserUuid(userUuid);
 		if (userOpt.isEmpty()) {
-			return ResponseEntity.badRequest().build();
+			return ResponseEntity.notFound().build();
 		}
 
 		return ResponseEntity.ok(userOpt.get().getDisplayName());

@@ -6,27 +6,16 @@ spring:
     name: spring-messenger-server
   datasource:
     driver-class-name: org.postgresql.Driver
-    url: jdbc:postgresql://arch-acer.local:5432/edu_alexey_messenger
+    url: jdbc:postgresql://localhost:5432/postgres
     username: postgres
-    password: gfhjkm%J{J{J
+    password: postgres
     
-     
-#  datasource:
-#    driver-class-name: org.h2.Driver
-#    username: sa
-#    password: sa
-#    url: jdbc:h2:file:./data
-#  h2:
-#    # http://localhost:port/h2-console
-#    console:
-#      enabled: true
   sql:
     init:
       mode: always
   jpa:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     defer-datasource-initialization: true
-#    database-platform: org.hibernate.dialect.H2Dialect
     show-sql: true
     generate-ddl: true
     hibernate:
@@ -39,8 +28,6 @@ spring:
       '[hibernate.highlight_sql]': true
 #      '[javax.persistence.create-database-schemas]': true
 #      '[javax.persistence.schema-generation.database.action]': create
-
-
 
 logging:
   file: 

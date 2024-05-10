@@ -72,7 +72,7 @@ public class ClientController {
 				clientUuid);
 
 		return ResponseEntity.created(
-				UriComponentsBuilder.fromPath("/{client_uuid}")
+				UriComponentsBuilder.fromPath("/client/{client_uuid}")
 						.buildAndExpand(clientUuid)
 						.toUri())
 				.build();
