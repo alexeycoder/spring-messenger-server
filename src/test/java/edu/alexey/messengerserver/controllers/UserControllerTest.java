@@ -1,10 +1,11 @@
 package edu.alexey.messengerserver.controllers;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatList;
+
 import java.util.Base64;
 import java.util.UUID;
 
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -15,6 +16,7 @@ import org.springframework.boot.test.autoconfigure.web.client.AutoConfigureWebCl
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -24,6 +26,8 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import edu.alexey.messengerserver.dto.UserResponseDto;
+import edu.alexey.messengerserver.dto.UserSignupDto;
 import edu.alexey.messengerserver.entities.User;
 import edu.alexey.messengerserver.repositories.MessageRepository;
 import edu.alexey.messengerserver.repositories.UserRepository;
@@ -33,9 +37,9 @@ import edu.alexey.messengerserver.services.ClientService;
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureWebClient
 @Testcontainers
-class ClientControllerTest {
+class UserControllerTest {
 
-	private static final String ENDPOINT_BASE = "/client";
+	private static final String ENDPOINT_BASE = "/users";
 
 	@Container
 	public static PostgreSQLContainer<?> pgSqlContainer = new PostgreSQLContainer<>("postgres")
@@ -81,10 +85,6 @@ class ClientControllerTest {
 				+ Base64.getEncoder().encodeToString((username + ":" + password).getBytes());
 	}
 
-	@AfterAll
-	static void tearDownAfterClass() throws Exception {
-	}
-
 	private User validUser;
 	private String validUserBasicAuthHeader;
 
@@ -109,32 +109,8 @@ class ClientControllerTest {
 				+ Base64.getEncoder().encodeToString((username + ":" + password).getBytes());
 	}
 
-	@AfterEach
-	void tearDown() throws Exception {
-	}
-
-	// Check all methods are protected with Basic Authentication:
-
 	@Test
-	void checkAuthResults401IfIllegalUser() {
-
-		webTestClient.get().uri(ENDPOINT_BASE)
-				.header(HttpHeaders.AUTHORIZATION, badUserBasicAuthHeader)
-				.exchange()
-				.expectStatus().isUnauthorized();
-	}
-
-	@Test
-	void registerClientResults401IfIllegalUser() {
-
-		webTestClient.post().uri(ENDPOINT_BASE + "/" + UUID.randomUUID())
-				.header(HttpHeaders.AUTHORIZATION, badUserBasicAuthHeader)
-				.exchange()
-				.expectStatus().isUnauthorized();
-	}
-
-	@Test
-	void checkUpdatesResults401IfIllegalUser() {
+	void getDisplayNameResults401ForIllegalUser() {
 
 		webTestClient.get().uri(ENDPOINT_BASE + "/" + UUID.randomUUID())
 				.header(HttpHeaders.AUTHORIZATION, badUserBasicAuthHeader)
@@ -142,79 +118,137 @@ class ClientControllerTest {
 				.expectStatus().isUnauthorized();
 	}
 
-	// 'After Authenticated' Checks:
-
 	@Test
-	void checkAuthResults200WithUserUuidForValidUser() {
+	void getDisplayNameResults200WithUserDisplayNameForValidUser() {
 
-		webTestClient.get().uri(ENDPOINT_BASE)
+		webTestClient.get().uri(ENDPOINT_BASE + "/" + validUser.getUserUuid())
 				.header(HttpHeaders.AUTHORIZATION, validUserBasicAuthHeader)
 				.exchange()
 				.expectStatus().isOk()
-				.expectBody(UUID.class).isEqualTo(validUser.getUserUuid());
+				.expectBody(String.class).isEqualTo(validUser.getDisplayName());
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = { "abcde", "123456", "~@0.123" })
+	void getDisplayNameResults400IfInvalidUserUuidFormat(String userUuidStr) {
+
+		webTestClient.get().uri(ENDPOINT_BASE + "/" + userUuidStr)
+				.header(HttpHeaders.AUTHORIZATION, validUserBasicAuthHeader)
+				.exchange()
+				.expectStatus().isBadRequest();
 	}
 
 	@Test
-	void registerClientResults201ForAnyValidClientUuid() {
+	void getDisplayNameResults404IfNoSuchUser() {
 
-		UUID clientUuid = UUID.randomUUID();
-
-		webTestClient.post().uri(ENDPOINT_BASE + "/" + clientUuid)
+		webTestClient.get().uri(ENDPOINT_BASE + "/" + UUID.randomUUID())
 				.header(HttpHeaders.AUTHORIZATION, validUserBasicAuthHeader)
+				.exchange()
+				.expectStatus().isNotFound();
+	}
+
+	@Test
+	void signUpNameResults200AndReturnsLocationOfCreatedUser() {
+
+		UserSignupDto userSignupDto = new UserSignupDto();
+		userSignupDto.setDisplayName("Ivan Ivanov");
+		userSignupDto.setUsername("ivan@ivanov");
+		userSignupDto.setPassword("ivanivanov");
+
+		webTestClient.post().uri(ENDPOINT_BASE + "/signup")
+				.accept(MediaType.APPLICATION_JSON)
+				.bodyValue(userSignupDto)
 				.exchange()
 				.expectStatus().isCreated()
-				.expectHeader().valueMatches(HttpHeaders.LOCATION, ENDPOINT_BASE + "/" + clientUuid.toString())
-				.expectBody().isEmpty();
+				.expectHeader().valueMatches(HttpHeaders.LOCATION, ENDPOINT_BASE + "/[-\\w]+");
+
+		userRepository.findByUsername(userSignupDto.getUsername());
 	}
 
-	@ParameterizedTest
-	@ValueSource(strings = { "abcde", "123456", "~@0.123" })
-	void registerClientResults400IfInvalidClientUuidFormat(String clientUuidStr) {
+	@Test
+	void signUpNameResults400AndIneligibleSignupData() {
 
-		webTestClient.post().uri(ENDPOINT_BASE + "/" + clientUuidStr)
-				.header(HttpHeaders.AUTHORIZATION, validUserBasicAuthHeader)
+		UserSignupDto userSignupDto = new UserSignupDto();
+		userSignupDto.setDisplayName("Ivan Ivanov");
+		userSignupDto.setUsername("");
+		userSignupDto.setPassword("ivanivanov");
+
+		webTestClient.post().uri(ENDPOINT_BASE + "/signup")
+				.accept(MediaType.APPLICATION_JSON)
+				.bodyValue(userSignupDto)
 				.exchange()
 				.expectStatus().isBadRequest();
-	}
 
-	@ParameterizedTest
-	@ValueSource(strings = { "abcde", "123456", "~@0.123" })
-	void checkUpdatesResults400IfInvalidClientUuidFormat(String clientUuidStr) {
+		userSignupDto = new UserSignupDto();
+		userSignupDto.setDisplayName("Ivan Ivanov");
+		userSignupDto.setUsername("ivan@ivanov");
+		userSignupDto.setPassword("");
 
-		webTestClient.get().uri(ENDPOINT_BASE + "/" + clientUuidStr)
-				.header(HttpHeaders.AUTHORIZATION, validUserBasicAuthHeader)
+		webTestClient.post().uri(ENDPOINT_BASE + "/signup")
+				.accept(MediaType.APPLICATION_JSON)
+				.bodyValue(userSignupDto)
 				.exchange()
 				.expectStatus().isBadRequest();
 	}
 
 	@Test
-	void checkUpdatesResult200WithAnswerZeroIfNoMessages() {
+	void findByUuidResults401ForIllegalUser() {
 
-		UUID clientUuid = UUID.randomUUID();
-
-		clientService.registerClient(clientUuid, validUser.getUserUuid());
-		clientService.unsetHasNewMessages(clientUuid);
-
-		webTestClient.get().uri(ENDPOINT_BASE + "/" + clientUuid.toString())
-				.header(HttpHeaders.AUTHORIZATION, validUserBasicAuthHeader)
+		webTestClient.get().uri(uriBuilder -> uriBuilder
+				.path(ENDPOINT_BASE)
+				.queryParam("uuid", UUID.randomUUID())
+				.build())
+				.header(HttpHeaders.AUTHORIZATION, badUserBasicAuthHeader)
 				.exchange()
-				.expectStatus().isOk()
-				.expectBody(Integer.class).isEqualTo(Integer.valueOf(0));
+				.expectStatus().isUnauthorized();
 	}
 
 	@Test
-	void checkUpdatesResult200WithAnswerOneIfHasMessages() {
+	void findByDisplayNameResults401ForIllegalUser() {
 
-		UUID clientUuid = UUID.randomUUID();
+		webTestClient.get().uri(uriBuilder -> uriBuilder
+				.path(ENDPOINT_BASE)
+				.queryParam("display_name", "abc")
+				.build())
+				.header(HttpHeaders.AUTHORIZATION, badUserBasicAuthHeader)
+				.exchange()
+				.expectStatus().isUnauthorized();
+	}
 
-		clientService.registerClient(clientUuid, validUser.getUserUuid());
-		clientService.notifyUserHasNewMessages(clientUuid);
+	@Test
+	void findByUuidResults200WithListOfFoundUsers() {
 
-		webTestClient.get().uri(ENDPOINT_BASE + "/" + clientUuid.toString())
+		var responseBody = webTestClient.get().uri(uriBuilder -> uriBuilder
+				.path(ENDPOINT_BASE)
+				.queryParam("uuid", validUser.getUserUuid())
+				.build())
 				.header(HttpHeaders.AUTHORIZATION, validUserBasicAuthHeader)
 				.exchange()
 				.expectStatus().isOk()
-				.expectBody(Integer.class).isEqualTo(Integer.valueOf(1));
+				.expectBodyList(UserResponseDto.class)
+				.returnResult().getResponseBody();
+
+		assertThatList(responseBody).hasSize(1);
+		assertThat(responseBody.getFirst()).isNotNull()
+				.extracting(UserResponseDto::displayName).isEqualTo(validUser.getDisplayName());
+	}
+
+	@Test
+	void findByDisplayNameResults200WithListOfFoundUsers() {
+
+		var responseBody = webTestClient.get().uri(uriBuilder -> uriBuilder
+				.path(ENDPOINT_BASE)
+				.queryParam("display_name", validUser.getDisplayName())
+				.build())
+				.header(HttpHeaders.AUTHORIZATION, validUserBasicAuthHeader)
+				.exchange()
+				.expectStatus().isOk()
+				.expectBodyList(UserResponseDto.class)
+				.returnResult().getResponseBody();
+
+		assertThatList(responseBody).hasSize(1);
+		assertThat(responseBody.getFirst()).isNotNull()
+				.extracting(UserResponseDto::userUuid).isEqualTo(validUser.getUserUuid());
 	}
 
 }
